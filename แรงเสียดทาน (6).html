@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>แรงเสียดทาน</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #424344;
+      --muted: #535456;
+      --border: #d0d1d2;
+      --physics: #f5891f;
+      --physics-light: #fdead6;
+      --physics-ink: #743e0d;
+      --frame: #cfefff;
+      --blue: #0055a4;
+      --blue-light: #e6f2ff;
+      --blue-border: #91c8ff;
+      --surface: #ffffff;
+      --canvas: var(--physics-light);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: clamp(8px, 2.5vw, 24px);
+      background: var(--surface);
+      color: var(--ink);
+      font: 16px/1.55 "Noto Sans Thai", "Sarabun", Tahoma, Arial, sans-serif;
+    }
+    main { max-width: 1160px; margin: auto; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: clamp(24px, 4vw, 32px); line-height: 1.3; }
+    h2 { margin-bottom: 12px; font-size: 17px; }
+    .hero { grid-area: hero; padding: 4px 8px 2px; }
+    .hero p, .hint { color: var(--muted); }
+    .hero p { margin-top: 6px; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 35fr) minmax(0, 65fr);
+      align-items: stretch;
+      grid-template-areas: "hero hero" "settings visual" "results results";
+      gap: 14px;
+      padding: 12px;
+      border-radius: 28px;
+      background: var(--frame);
+    }
+    .card { min-width: 0; background: var(--surface); border-radius: 20px; }
+    .settings, .visual { padding: 14px 16px 16px; }
+    .settings { grid-area: settings; }
+    .settings section + section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+    .experiment { width: 100%; }
+    .visual {
+      grid-area: visual;
+      display: grid;
+      align-content: start;
+      justify-items: center;
+      gap: 12px;
+    }
+    .results { grid-area: results; padding: 14px; }
+    .control + .control { margin-top: 7px; }
+    .row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    label { font-weight: 600; }
+    output {
+      flex-shrink: 0;
+      color: var(--physics-ink);
+      font-weight: bold;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .row output { padding: 2px 10px; border: 1px solid var(--physics); background: var(--physics-light); border-radius: 99px; }
+    input[type="range"] {
+      --slider-track: linear-gradient(to right, var(--physics) var(--fill, 0%), var(--border) var(--fill, 0%));
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      width: 100%;
+      height: 44px;
+      margin: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    #force { touch-action: none; }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 99px;
+      background: var(--slider-track);
+    }
+    input[type="range"]::-moz-range-track {
+      height: 8px;
+      border-radius: 99px;
+      background: var(--slider-track);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      margin-top: -5px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--physics);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--physics);
+    }
+    @media (forced-colors: active) {
+      input[type="range"] { -webkit-appearance: auto; appearance: auto; }
+    }
+    select, button {
+      min-height: 44px;
+      padding: 7px 12px;
+      border: 1px solid #babcbd;
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+    }
+    #gravity {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 36px;
+      background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23424344' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 12px center / 16px no-repeat;
+    }
+    @media (forced-colors: active) {
+      #gravity { -webkit-appearance: auto; appearance: auto; padding-right: 12px; background-image: none; }
+    }
+    button { cursor: pointer; font-weight: 700; font-size: 14px; }
+    button:hover { background: var(--blue-light); }
+    button.primary { color: var(--ink); background: var(--physics-light); border: 2px solid var(--physics); }
+    button.primary:hover { background: #ffe1bf; }
+    :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .hint { font-size: 14px; margin-top: 6px; }
+    #forceHint { padding: 8px 10px; border: 1px solid var(--blue-border); border-radius: 10px; background: var(--blue-light); color: var(--blue); }
+    #forceLimit { padding: 8px; border-radius: 8px; background: var(--physics-light); color: var(--physics-ink); }
+    #scene {
+      display: block;
+      width: 100%;
+      max-width: 650px;
+      height: auto;
+      margin: 0 auto;
+      background: var(--canvas);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      user-select: none;
+    }
+    #box { cursor: grab; }
+    #box, #box * { touch-action: none; }
+    #box:active { cursor: grabbing; }
+    #arrows { pointer-events: none; }
+    #arrows text {
+      font-size: 17px;
+      font-weight: bold;
+      text-anchor: middle;
+      paint-order: stroke;
+      stroke: var(--canvas);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+    #arrows line { stroke-width: 4px; stroke-linecap: round; }
+    .result {
+      padding: 10px 12px;
+      border: 1px solid var(--blue-border);
+      border-inline-start: 4px solid var(--blue);
+      border-radius: 10px;
+      background: var(--blue-light);
+      color: var(--blue);
+    }
+    .result.sliding { border-color: #efb278; border-inline-start-color: var(--physics); background: var(--physics-light); color: var(--physics-ink); }
+    .result strong { display: block; font-size: 18px; }
+    .result p { font-size: 14px; margin-top: 2px; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 10px;
+      border-radius: 16px;
+      background: var(--physics-light);
+    }
+    .metrics div { padding: 9px; background: var(--surface); border-radius: 10px; }
+    .metrics dt { color: var(--muted); font-size: 12px; }
+    .metrics dd { margin: 3px 0 0; font-size: 17px; font-weight: bold; font-variant-numeric: tabular-nums; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    @media (max-width: 899px), (max-width: 1440px) and (hover: none) and (pointer: coarse) {
+      main { max-width: 760px; }
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "hero" "diagram" "settings" "experiment" "results";
+        gap: 10px;
+      }
+      .visual { display: contents; }
+      #scene { grid-area: diagram; max-width: none; }
+      .layout::before {
+        content: "";
+        grid-area: settings-start / settings-start / experiment-end / settings-end;
+        background: var(--surface);
+        border-radius: 20px;
+        pointer-events: none;
+      }
+      .settings, .experiment { z-index: 1; background: transparent; }
+      .settings { padding-bottom: 2px; }
+      .experiment { grid-area: experiment; padding: 0 16px 16px; }
+      .experiment::before {
+        content: "";
+        display: block;
+        margin-bottom: 14px;
+        border-top: 1px dashed var(--border);
+      }
+      .buttons button { flex: 1 1 130px; }
+    }
+    @media (min-width: 600px) and (max-width: 899px),
+           (min-width: 600px) and (max-width: 1440px) and (hover: none) and (pointer: coarse) {
+      .settings {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .settings section + section {
+        margin-top: 0;
+        padding-top: 0;
+        padding-inline-start: 16px;
+        border-top: 0;
+        border-inline-start: 1px dashed var(--border);
+      }
+    }
+    @media (max-width: 640px) {
+      .layout { padding: 6px; border-radius: 22px; }
+      .settings, .experiment, .results { padding-inline: 12px; }
+      .hero p { font-size: 14px; }
+      #forceHint { overflow-wrap: anywhere; }
+    }
+    @media (max-width: 460px) {
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        padding: 7px;
+      }
+      .metrics div { padding: 8px; }
+      .metrics div:last-child { grid-column: 1 / -1; }
+      .metrics dd { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="layout">
+    <header class="hero">
+      <h1>แรงเสียดทาน</h1>
+      <p>ลองออกแรงดึงกล่องที่เริ่มจากหยุดนิ่ง แล้วดูว่าต้องดึงแรงแค่ไหนกล่องจึงเริ่มไถล</p>
+    </header>
+
+    <div class="card settings">
+      <section>
+        <h2>1. ปรับน้ำหนักกล่อง</h2>
+        <div class="control">
+          <div class="row">
+            <label for="mass">มวลกล่อง</label>
+            <output id="massValue" for="mass">5 kg</output>
+          </div>
+          <input id="mass" type="range" min="0.5" max="20" step="0.5" value="5">
+        </div>
+        <div class="row control">
+          <label for="gravity">ค่า g</label>
+          <select id="gravity">
+            <option value="9.8">9.8 m/s²</option>
+            <option value="10">10 m/s²</option>
+          </select>
+        </div>
+        <p class="hint">น้ำหนัก mg = <output id="weightValue" for="mass gravity">49 N</output></p>
+      </section>
+
+      <section>
+        <h2>2. ปรับสัมประสิทธิ์</h2>
+        <div class="control">
+          <div class="row">
+            <label for="muS">สถิต μₛ</label>
+            <output id="muSValue" for="muS">0.50</output>
+          </div>
+          <input id="muS" type="range" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="control">
+          <div class="row">
+            <label for="muK">จลน์ μₖ</label>
+            <output id="muKValue" for="muK">0.30</output>
+          </div>
+          <input id="muK" type="range" min="0" max="0.5" step="0.01" value="0.3">
+        </div>
+        <p class="hint">ในการทดลองนี้ ปรับ μₖ ได้ตั้งแต่ 0 ถึง μₛ</p>
+      </section>
+    </div>
+
+    <section class="card visual" aria-labelledby="diagramTitle">
+      <section class="experiment" aria-labelledby="experimentHeading">
+        <h2 id="experimentHeading">3. ออกแรงดึง</h2>
+        <div class="control">
+          <div class="row">
+            <label for="angle">มุมดึงขึ้นจากแนวราบ</label>
+            <output id="angleValue" for="angle">0°</output>
+          </div>
+          <input id="angle" type="range" min="0" max="60" step="1" value="0">
+        </div>
+        <div class="control">
+          <div class="row">
+            <label for="force">ขนาดแรงดึง F</label>
+            <output id="forceValue" for="force">0 N</output>
+          </div>
+          <input id="force" type="range" min="0" max="98" step="any" value="0" aria-describedby="forceHint forceLimit">
+        </div>
+        <p id="forceHint" class="hint">แรงดึงแนวราบ Fₓ = F cos θ และแรงตั้งฉาก N = mg − F sin θ</p>
+        <p id="forceLimit" class="hint" hidden></p>
+        <div class="buttons">
+          <button id="reset" type="button">กลับจุดเริ่มต้น</button>
+          <button id="demo" type="button" class="primary">ดูตัวอย่างอัตโนมัติ</button>
+        </div>
+      </section>
+      <svg id="scene" viewBox="44 16 472 258" role="img" aria-labelledby="diagramTitle">
+        <title id="diagramTitle">แผนภาพแรงบนกล่องบนพื้นราบ</title>
+        <defs>
+          <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3.4" markerHeight="3.4" orient="auto">
+            <path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/>
+          </marker>
+        </defs>
+        <rect x="52" y="195" width="456" height="70" rx="9" fill="#e6f2ff"/>
+        <path d="M52 195 H508" fill="none" stroke="#68696b" stroke-width="2"/>
+        <g id="box">
+          <g stroke="#79512f" stroke-width="1.4" stroke-linejoin="round">
+            <path d="M27 145L37 139V189L27 195Z" fill="#a77647"/>
+            <path d="M-37 145L-27 139H37L27 145Z" fill="#e4bd85"/>
+            <path d="M-37 145H27V195H-37Z" fill="#d3a471"/>
+            <path d="M-31 151H21V189H-31Z" fill="#bd905f"/>
+            <path d="M-21 152V188M-10 152V188M1 152V188M12 152V188"
+                  fill="none" stroke="#996d45" stroke-width="0.9"/>
+            <path d="M-31 152H-23L21 182V188H14L-31 158Z" fill="#e1b886"/>
+          </g>
+          <rect x="-23" y="174" width="36" height="16" rx="2" fill="#fff0d7"/>
+          <text id="massLabel" x="-5" y="186" font-size="11" font-weight="bold" text-anchor="middle" fill="#442b19">5 kg</text>
+        </g>
+        <g id="arrows">
+          <g id="angleGuide" aria-hidden="true" visibility="hidden">
+            <path id="angleBaseline" fill="none" stroke="#68696b" stroke-dasharray="4 3"/>
+            <path id="angleArc" fill="none" stroke="#0055a4"/>
+            <text id="angleLabel" fill="#0055a4">θ</text>
+          </g>
+          <line id="pullArrow" stroke="#0080ff" marker-end="url(#head)"/>
+          <line id="frictionArrow" stroke="#f5891f" marker-end="url(#head)"/>
+          <line id="normalArrow" stroke="#004991" marker-end="url(#head)"/>
+          <line id="weightArrow" stroke="#535456" marker-end="url(#head)"/>
+          <text id="pullLabel" fill="#0055a4"></text>
+          <text id="frictionLabel" fill="#743e0d"></text>
+          <text id="normalLabel" y="72" fill="#004991"></text>
+          <text id="weightLabel" fill="#424344"></text>
+        </g>
+      </svg>
+    </section>
+
+    <section class="card results" aria-label="ผลการทดลอง">
+      <div id="result" class="result">
+        <strong id="outcome" role="status">กล่องยังไม่ไถล</strong>
+        <p id="explanation"></p>
+      </div>
+      <dl class="metrics">
+        <div><dt>แรงดึงแนวราบ Fₓ</dt><dd id="horizontalValue"></dd></div>
+        <div><dt>แรงตั้งฉาก N</dt><dd id="normalValue"></dd></div>
+        <div><dt>แรงเสียดทานสถิตสูงสุด μₛN</dt><dd id="staticLimitValue"></dd></div>
+      </dl>
+    </section>
+
+  </div>
+</main>
+
+<script>
+  const elements = Object.fromEntries(
+    [...document.querySelectorAll("[id]")].map(element => [element.id, element])
+  );
+  const { scene, box, mass, gravity, muS, muK, angle, force } = elements;
+  const sliders = [mass, muS, muK, angle, force];
+  const maxTravel = 62;
+  let requestedForce = force.valueAsNumber;
+  let direction = 1;
+  let drag = null;
+  let forceTouchId = null;
+  let demoFrame = null;
+  let wasSliding = null;
+
+  function getSettings() {
+    const weight = mass.valueAsNumber * Number(gravity.value);
+    const radians = angle.valueAsNumber * Math.PI / 180;
+    const sine = Math.sin(radians);
+    const cosine = Math.cos(radians);
+    const maximumForce = sine === 0 ? 2 * weight : Math.min(2 * weight, weight / sine);
+    const staticCoefficient = muS.valueAsNumber;
+    const threshold = staticCoefficient * weight / (cosine + staticCoefficient * sine);
+    return { weight, sine, cosine, maximumForce, threshold, staticCoefficient };
+  }
+
+  function getForces(settings, applied) {
+    const horizontal = applied * settings.cosine;
+    const normal = Math.max(0, settings.weight - applied * settings.sine);
+    const staticLimit = settings.staticCoefficient * normal;
+    // The comparison tests whether a block starting at rest begins to slide.
+    const sliding = horizontal - staticLimit > 1e-9;
+    const friction = sliding ? muK.valueAsNumber * normal : horizontal;
+    return { horizontal, normal, staticLimit, sliding, friction };
+  }
+
+  function newtons(value) {
+    return value.toFixed(2).replace(/\.?0+$/, "") + " N";
+  }
+
+  function write(id, value) {
+    elements[id].textContent = value;
+  }
+
+  function drawArrow(name, value, x, y, dx, dy, label, labelX, labelY) {
+    const line = elements[name + "Arrow"];
+    line.style.visibility = value > 1e-9 ? "visible" : "hidden";
+    // Scale the marker with the stroke so short arrowheads stay in front of the origin.
+    line.style.strokeWidth = Math.min(4, Math.hypot(dx, dy) / 3.4);
+    line.setAttribute("x1", x);
+    line.setAttribute("y1", y);
+    line.setAttribute("x2", x + dx);
+    line.setAttribute("y2", y + dy);
+    const text = elements[name + "Label"];
+    text.setAttribute("x", labelX);
+    if (labelY !== undefined) text.setAttribute("y", labelY);
+    text.textContent = label + " " + newtons(value);
+  }
+
+  function drawAngleGuide(x, y, settings, length) {
+    const visible = settings.sine > 0 && length >= 22;
+    elements.angleGuide.setAttribute("visibility", visible ? "visible" : "hidden");
+    if (!visible) return;
+
+    const radius = Math.min(32, length * 0.72);
+    const endX = x + direction * radius * settings.cosine;
+    const endY = y - radius * settings.sine;
+    const sweep = direction === 1 ? 0 : 1;
+    elements.angleBaseline.setAttribute("d", `M ${x} ${y} h ${direction * (radius + 18)}`);
+    elements.angleArc.setAttribute("d",
+      `M ${x + direction * radius} ${y} A ${radius} ${radius} 0 0 ${sweep} ${endX} ${endY}`);
+    elements.angleLabel.setAttribute("x", x + direction * (radius + 12));
+    elements.angleLabel.setAttribute("y", y + 16);
+  }
+
+  function render(forceSetting = requestedForce) {
+    requestedForce = forceSetting;
+    muK.max = muS.value;
+    if (muK.valueAsNumber > muS.valueAsNumber) {
+      muK.value = muS.value;
+    }
+
+    const settings = getSettings();
+    if (Number(force.max) !== settings.maximumForce) {
+      force.max = settings.maximumForce;
+    }
+    const applied = Math.min(settings.maximumForce, Math.max(0, requestedForce));
+    if (force.valueAsNumber !== applied) {
+      force.value = applied;
+    }
+    for (const slider of sliders) {
+      const min = Number(slider.min);
+      const span = Number(slider.max) - min;
+      const fill = span > 0 ? (slider.valueAsNumber - min) / span : 0;
+      slider.style.setProperty("--fill", Math.min(100, Math.max(0, fill * 100)) + "%");
+    }
+    const limited = requestedForce - applied > 1e-9;
+    elements.forceLimit.hidden = !limited;
+    write("forceLimit", limited
+      ? `แรงดึงที่ตั้งไว้ ${newtons(requestedForce)} ถูกจำกัดเหลือ ${newtons(applied)} เพื่อจำลองช่วงที่กล่องยังอยู่บนพื้น (F sin θ ≤ mg)`
+      : "");
+    const { horizontal, normal, staticLimit, sliding, friction } = getForces(settings, applied);
+    const travel = sliding ? maxTravel * (applied - settings.threshold) /
+      (settings.maximumForce - settings.threshold) : 0;
+    const center = 280 + direction * travel;
+    box.setAttribute("transform", "translate(" + center + " 0)");
+
+    const scale = 86 / (2 * settings.weight);
+    const pullX = center + direction * 39;
+    const pullDx = direction * horizontal * scale;
+    const pullDy = -applied * settings.sine * scale;
+    drawAngleGuide(pullX, 160, settings, applied * scale);
+    const frictionX = center - direction * 39;
+    const frictionDx = -direction * friction * scale;
+    drawArrow("pull", applied, pullX, 160, pullDx, pullDy, "แรงดึง",
+      pullX + direction * Math.max(54, Math.abs(pullDx) / 2), 147 + pullDy);
+    drawArrow("friction", friction, frictionX, 184, frictionDx, 0, sliding ? "แรงเสียดทาน fₖ" : "แรงเสียดทาน fₛ",
+      frictionX - direction * 12, 173);
+    elements.frictionLabel.style.textAnchor = direction === 1 ? "end" : "start";
+    drawArrow("normal", normal, center, 139, 0, -normal * scale, "N",
+      center);
+    drawArrow("weight", settings.weight, center, 196, 0, settings.weight * scale, "mg",
+      center + 62, 215);
+
+    write("massValue", mass.valueAsNumber + " kg");
+    write("massLabel", mass.valueAsNumber + " kg");
+    write("weightValue", newtons(settings.weight));
+    write("muSValue", muS.valueAsNumber.toFixed(2));
+    write("muKValue", muK.valueAsNumber.toFixed(2));
+    write("angleValue", angle.value + "°");
+    write("forceValue", newtons(applied));
+    write("horizontalValue", newtons(horizontal));
+    write("normalValue", newtons(normal));
+    write("staticLimitValue", newtons(staticLimit));
+
+    if (wasSliding !== sliding) {
+      wasSliding = sliding;
+      elements.result.classList.toggle("sliding", sliding);
+      write("outcome", sliding ? "กล่องเริ่มไถล" : "กล่องยังไม่ไถล");
+    }
+    if (normal <= 1e-9) {
+      write("explanation", "แรงดึงขึ้นเท่ากับน้ำหนักพอดี พื้นจึงออกแรงตั้งฉากเป็นศูนย์ และแรงเสียดทานเป็น 0 N");
+    } else if (sliding) {
+      write("explanation", "แรงดึงแนวราบเกินแรงเสียดทานสถิตสูงสุด แรงเสียดทานจลน์ต้านทิศการไถล มีขนาด μₖN = " + newtons(friction));
+    } else if (horizontal > 0 && Math.abs(horizontal - staticLimit) <= 1e-9) {
+      write("explanation", "แรงเสียดทานสถิตถึงค่าสูงสุดที่ " + newtons(friction) + " กล่องจะเริ่มไถลเมื่อแรงดึงแนวราบสูงกว่านี้");
+    } else {
+      write("explanation", "กล่องยังหยุดนิ่ง แรงเสียดทานสถิตต้านแรงดึงแนวราบพอดี มีขนาด " + newtons(friction));
+    }
+  }
+
+  function cancelDemo() {
+    if (demoFrame !== null) {
+      cancelAnimationFrame(demoFrame);
+      demoFrame = null;
+    }
+  }
+
+  function pointerX(event) {
+    return new DOMPoint(event.clientX, event.clientY)
+      .matrixTransform(scene.getScreenCTM().inverse()).x;
+  }
+
+  box.addEventListener("pointerdown", event => {
+    if (drag || (event.pointerType === "mouse" && event.button !== 0)) return;
+    cancelDemo();
+    drag = { id: event.pointerId, start: pointerX(event) };
+    box.setPointerCapture(event.pointerId);
+  });
+
+  box.addEventListener("pointermove", event => {
+    if (drag?.id !== event.pointerId) return;
+    const delta = pointerX(event) - drag.start;
+    direction = Math.sign(delta) || direction;
+    render(getSettings().maximumForce * Math.min(1, Math.abs(delta) / 145));
+  });
+
+  function endBoxDrag(event) {
+    if (drag?.id === event.pointerId) drag = null;
+  }
+
+  function updateForceFromTouch(event) {
+    const track = force.getBoundingClientRect();
+    if (track.width <= 0) return;
+    const progress = Math.min(1, Math.max(0, (event.clientX - track.left) / track.width));
+    render(progress * Number(force.max));
+  }
+
+  force.addEventListener("pointerdown", event => {
+    if (event.pointerType !== "touch" || forceTouchId !== null) return;
+    event.preventDefault();
+    forceTouchId = event.pointerId;
+    force.setPointerCapture(event.pointerId);
+    cancelDemo();
+    direction = 1;
+    updateForceFromTouch(event);
+  });
+
+  force.addEventListener("pointermove", event => {
+    if (forceTouchId === event.pointerId) updateForceFromTouch(event);
+  });
+
+  function endForceTouch(event) {
+    if (forceTouchId === event.pointerId) forceTouchId = null;
+  }
+
+  for (const eventName of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    box.addEventListener(eventName, endBoxDrag);
+    force.addEventListener(eventName, endForceTouch);
+  }
+
+  for (const control of [mass, gravity, muS, muK, angle, force]) {
+    control.addEventListener("input", () => {
+      cancelDemo();
+      if (control === force) {
+        direction = 1;
+        render(force.valueAsNumber);
+      } else {
+        render();
+      }
+    });
+  }
+
+  elements.reset.addEventListener("click", () => {
+    cancelDemo();
+    direction = 1;
+    render(0);
+  });
+
+  elements.demo.addEventListener("click", () => {
+    cancelDemo();
+    direction = 1;
+    render(0);
+    const start = performance.now();
+    const { threshold, maximumForce } = getSettings();
+    const target = threshold + (maximumForce - threshold) * 0.7;
+
+    function step(now) {
+      const progress = Math.min(1, (now - start) / 3800);
+      const applied = progress <= 0.5
+        ? threshold * 2 * progress
+        : threshold + (target - threshold) * (2 * progress - 1);
+      render(applied);
+      demoFrame = progress < 1 ? requestAnimationFrame(step) : null;
+    }
+
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      render(target);
+    } else {
+      demoFrame = requestAnimationFrame(step);
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
